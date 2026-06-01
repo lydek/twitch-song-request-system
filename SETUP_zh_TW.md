@@ -21,8 +21,8 @@ OBS 顯示層透過 WebSocket 即時更新
 
 執行安裝腳本前，請先安裝以下工具：
 
-- **Node.js LTS** → https://nodejs.org（安裝時記得勾選「Add to PATH」）
-- **ngrok** → https://ngrok.com/download（免費註冊，解壓縮至 `C:\ngrok\`）
+- **Node.js LTS** → https://nodejs.org （安裝時記得勾選「Add to PATH」）
+- **ngrok** → https://ngrok.com/download （免費註冊，解壓縮至 `C:\ngrok\`）
 
 ---
 
