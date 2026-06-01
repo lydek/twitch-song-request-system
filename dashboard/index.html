@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Song Queue Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #07070f;
+    --bg-panel: #0d0d1e;
+    --bg-card: #111128;
+    --bg-hover: #181830;
+    --border: rgba(120,60,220,0.25);
+    --border-green: rgba(40,160,90,0.25);
+    --border-amber: rgba(200,140,30,0.3);
+    --purple: #b06aff;
+    --purple-dim: #6a3f99;
+    --green: #4aff9a;
+    --green-dim: #2a9a5a;
+    --amber: #ffb84a;
+    --amber-dim: #996a20;
+    --blue: #5a9aff;
+    --red: #ff5a5a;
+    --text: #d4c8f0;
+    --text-dim: #7a6a9a;
+    --text-muted: #3a3060;
+    --drag-over: rgba(176,106,255,0.15);
+    --orange: #ff8c32;
+    --orange-dim: #995020;
+  }
+
+  html, body {
+    min-height: 100vh;
+    background: var(--bg);
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--text);
+    font-size: 13px;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 20px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px; font-weight: 500; letter-spacing: 3px; color: var(--purple);
+  }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--purple); animation: blink 2s infinite; }
+  .status-dot.off { background: #ff4444; animation: none; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .topbar-spacer { flex: 1; }
+  .topbar-hint { font-size: 10px; color: var(--text-muted); }
+
+  .btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; padding: 5px 12px;
+    background: transparent; border: 1px solid var(--border);
+    border-radius: 4px; color: var(--purple); cursor: pointer;
+    transition: background .15s;
+  }
+  .btn:hover { background: rgba(176,106,255,0.1); }
+  .btn.danger { color: var(--red); border-color: rgba(255,90,90,0.3); }
+  .btn.danger:hover { background: rgba(255,90,90,0.1); }
+  .btn.skip { color: var(--amber); border-color: var(--border-amber); }
+  .btn.skip:hover { background: rgba(255,184,74,0.1); }
+
+  /* ── Layout ── */
+  .columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 12px;
+    padding: 12px 16px;
+    align-items: start;
+    height: calc(100vh - 98px);
+  }
+
+  /* ── Column panels ── */
+  .col-panel {
+    background: var(--bg-panel);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .col-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-panel);
+    flex-shrink: 0;
+  }
+  .col-header.green  { border-bottom-color: var(--border-green); }
+  .col-header.amber  { border-bottom-color: var(--border-amber); }
+  .col-header.orange { border-bottom-color: rgba(255,140,50,0.3); }
+
+  .col-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px; font-weight: 500; letter-spacing: 2px;
+    text-transform: uppercase; flex: 1;
+  }
+  .col-title.purple { color: var(--purple-dim); }
+  .col-title.green  { color: var(--green-dim); }
+  .col-title.amber  { color: var(--amber-dim); }
+  .col-title.orange { color: var(--orange-dim); }
+
+  .col-badge.orange { background: rgba(80,45,10,0.4); border: 1px solid rgba(160,90,20,0.3); color: var(--orange); }
+
+  .col-badge {
+    font-size: 9px; padding: 2px 7px; border-radius: 3px; letter-spacing: 1px;
+  }
+  .col-badge.purple { background: rgba(80,30,120,0.4); border: 1px solid rgba(120,60,200,0.3); color: var(--purple); }
+  .col-badge.green  { background: rgba(20,80,50,0.4);  border: 1px solid rgba(40,140,80,0.3);  color: var(--green); }
+  .col-badge.amber  { background: rgba(80,55,10,0.4);  border: 1px solid rgba(160,110,20,0.3); color: var(--amber); }
+
+  /* ── Drop zone ── */
+  .drop-zone {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    transition: background .15s;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(176,106,255,0.2) transparent;
+  }
+  .drop-zone::-webkit-scrollbar { width: 3px; }
+  .drop-zone::-webkit-scrollbar-thumb { background: rgba(176,106,255,0.2); border-radius: 2px; }
+  .drop-zone.drag-over { background: var(--drag-over); }
+
+  /* ── Song cards ── */
+  .song-card {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px;
+    background: var(--bg-card);
+    border: 1px solid rgba(60,40,100,0.3);
+    border-radius: 5px;
+    margin-bottom: 5px;
+    cursor: grab;
+    transition: background .1s, border-color .1s, opacity .15s;
+    user-select: none;
+  }
+  .song-card:last-child { margin-bottom: 0; }
+  .song-card:hover { background: var(--bg-hover); border-color: rgba(120,80,200,0.4); }
+  .song-card.dragging { opacity: 0.35; cursor: grabbing; }
+  .song-card.drag-target { border-color: var(--purple); background: rgba(80,30,140,0.3); }
+
+  .song-card.played-card {
+    border-color: rgba(30,70,50,0.3);
+  }
+  .song-card.played-card:hover { border-color: rgba(60,140,90,0.4); }
+
+  /* Pending card */
+  .pending-card {
+    background: rgba(18,10,5,0.8);
+    border: 1px solid rgba(160,90,20,0.3);
+    border-left: 3px solid var(--orange);
+    border-radius: 5px;
+    padding: 8px 10px;
+    margin-bottom: 5px;
+    animation: slide-in 0.3s ease;
+  }
+  .pending-card:last-child { margin-bottom: 0; }
+  .pending-top { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .pending-original {
+    font-size: 10px; color: var(--orange); flex: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pending-confidence {
+    font-size: 9px; padding: 1px 6px; border-radius: 3px; white-space: nowrap;
+    background: rgba(80,45,10,0.5); border: 1px solid rgba(160,90,20,0.3); color: var(--orange);
+  }
+  .pending-confidence.no-match {
+    background: rgba(80,20,20,0.5); border-color: rgba(160,40,40,0.3); color: var(--red);
+  }
+  .pending-req { font-size: 9px; color: var(--blue); }
+  .pending-fields { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
+  .pending-field {
+    width: 100%; background: rgba(10,8,20,0.8);
+    border: 1px solid rgba(120,60,220,0.2); border-radius: 3px;
+    padding: 4px 7px; font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; color: var(--text); outline: none;
+    transition: border-color .15s;
+  }
+  .pending-field:focus { border-color: var(--purple); }
+  .pending-field::placeholder { color: var(--text-muted); }
+  .pending-actions { display: flex; gap: 5px; }
+  .accept-btn {
+    flex: 1; padding: 4px 8px;
+    background: rgba(74,255,154,0.08); border: 1px solid rgba(74,255,154,0.3);
+    border-radius: 3px; color: var(--green); font-size: 10px;
+    font-family: 'Share Tech Mono', monospace; cursor: pointer;
+    transition: all .15s;
+  }
+  .accept-btn:hover { background: rgba(74,255,154,0.18); }
+  .pending-del {
+    flex-shrink: 0; width: 24px; height: 24px;
+    background: transparent; border: 1px solid rgba(255,90,90,0.2);
+    border-radius: 3px; color: rgba(255,90,90,0.5);
+    cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+  }
+  .pending-del:hover { background: rgba(255,90,90,0.15); color: var(--red); border-color: rgba(255,90,90,0.5); }
+
+  .drag-handle {
+    color: var(--text-muted); font-size: 14px; cursor: grab; flex-shrink: 0;
+    display: flex; flex-direction: column; gap: 2px; padding: 2px;
+  }
+  .drag-handle span {
+    display: block; width: 14px; height: 1.5px; background: currentColor; border-radius: 1px;
+  }
+
+  .song-info { flex: 1; min-width: 0; }
+  .song-title { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .song-artist { font-size: 10px; color: var(--text-dim); margin-top: 1px; }
+  .song-req { font-size: 9px; color: var(--blue); margin-top: 2px; }
+
+  .del-btn {
+    flex-shrink: 0; width: 22px; height: 22px;
+    background: transparent; border: 1px solid rgba(255,90,90,0.2);
+    border-radius: 3px; color: rgba(255,90,90,0.5);
+    cursor: pointer; font-size: 13px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+  }
+  .del-btn:hover { background: rgba(255,90,90,0.15); color: var(--red); border-color: rgba(255,90,90,0.5); }
+
+  /* ── Now playing special card ── */
+  .now-playing-card {
+    background: rgba(40,15,80,0.6);
+    border: 1px solid rgba(176,106,255,0.4);
+    border-left: 3px solid var(--purple);
+    border-radius: 5px;
+    padding: 10px 12px;
+    margin: 8px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .now-playing-card .song-info .song-title { font-size: 13px; color: #ddc8ff; }
+  .now-playing-card .song-line1 {
+    display: flex; align-items: baseline; gap: 10px;
+    flex-wrap: wrap; justify-content: space-between;
+  }
+  .now-playing-card .song-line1 .song-title  { font-size: 16px; color: #ddc8ff; flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .now-playing-card .song-line1 .song-req    { font-size: 13px; color: var(--blue); white-space: nowrap; flex-shrink: 0; margin-left: auto; }
+
+  .song-line1 {
+    display: flex; align-items: baseline; gap: 10px;
+    flex-wrap: wrap; justify-content: space-between;
+  }
+  .song-line1 .song-title  { font-size: 13px; color: var(--text); flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .song-line1 .song-req    { font-size: 11px; color: var(--blue); white-space: nowrap; flex-shrink: 0; margin-left: auto; }
+  .song-line2 {
+    display: flex; align-items: baseline; gap: 10px; margin-top: 2px;
+  }
+  .song-line2 .song-artist { font-size: 11px; color: var(--text-dim); flex: 1; }
+  .song-line2 .song-req    { font-size: 11px; color: var(--blue); white-space: nowrap; }
+  .now-playing-label {
+    font-size: 8px; letter-spacing: 2px; color: var(--purple-dim); margin-bottom: 4px;
+  }
+  .np-empty { font-size: 11px; color: var(--text-muted); padding: 12px; text-align: center; }
+
+  /* ── Drop placeholder ── */
+  .drop-placeholder {
+    height: 34px;
+    border: 1px dashed rgba(176,106,255,0.3);
+    border-radius: 5px;
+    margin-bottom: 5px;
+    display: none;
+  }
+  .drop-placeholder.visible { display: block; }
+
+  /* ── Empty state ── */
+  .empty-state { font-size: 10px; color: var(--text-muted); text-align: center; padding: 20px 0; }
+
+  /* ── Manual request bar ── */
+  .request-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 20px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 49px; z-index: 90;
+  }
+  .request-label {
+    font-size: 9px; letter-spacing: 2px; color: var(--text-muted);
+    white-space: nowrap; text-transform: uppercase;
+  }
+  .request-input-wrap { position: relative; flex: 2; }
+  .request-input-wrap input {
+    width: 100%;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 4px; padding: 6px 10px;
+    font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--text);
+    outline: none; transition: border-color .15s;
+  }
+  .request-input-wrap input:focus { border-color: var(--purple); }
+  .request-input-wrap input::placeholder { color: var(--text-muted); }
+
+  .suggest-list {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 4px; z-index: 200; max-height: 220px; overflow-y: auto;
+    display: none;
+    scrollbar-width: thin; scrollbar-color: rgba(176,106,255,0.2) transparent;
+  }
+  .suggest-list.open { display: block; }
+  .suggest-item {
+    padding: 7px 10px; cursor: pointer; font-size: 12px;
+    border-bottom: 1px solid rgba(120,60,220,0.1);
+    transition: background .1s;
+  }
+  .suggest-item:last-child { border-bottom: none; }
+  .suggest-item:hover, .suggest-item.active { background: rgba(176,106,255,0.12); }
+  .suggest-item .s-artist { font-size: 10px; color: var(--text-dim); margin-left: 6px; }
+
+  .requester-input {
+    flex: 1;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 4px; padding: 6px 10px;
+    font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--text);
+    outline: none; transition: border-color .15s; min-width: 0;
+  }
+  .requester-input:focus { border-color: var(--blue); }
+  .requester-input::placeholder { color: var(--text-muted); }
+
+  .btn.add { color: var(--green); border-color: var(--border-green); white-space: nowrap; }
+  .btn.add:hover { background: rgba(74,255,154,0.1); }
+  .btn.add:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .finish-btn {
+    flex-shrink: 0; padding: 5px 10px;
+    background: rgba(74,255,154,0.08); border: 1px solid rgba(74,255,154,0.3);
+    border-radius: 4px; color: var(--green); font-size: 10px; letter-spacing: 1px;
+    font-family: 'Share Tech Mono', monospace; cursor: pointer;
+    transition: all .15s; white-space: nowrap;
+  }
+  .finish-btn:hover { background: rgba(74,255,154,0.18); border-color: var(--green); }
+
+  .key-badge {
+    width: 36px; height: 36px; min-width: 36px; min-height: 36px;
+    border-radius: 50%; flex-shrink: 0; box-sizing: border-box;
+    background: rgba(50,30,80,0.5); border: 2px solid rgba(140,80,255,0.5); color: #c09aff;
+    font-family: 'Share Tech Mono', monospace; font-size: 11px; font-weight: 500;
+    display: inline-flex; align-items: center; justify-content: center;
+    vertical-align: middle; line-height: 1;
+  }
+
+  .toast {
+    font-size: 10px; padding: 4px 10px; border-radius: 3px;
+    opacity: 0; transition: opacity .3s;
+    background: rgba(74,255,154,0.15); border: 1px solid rgba(74,255,154,0.3); color: var(--green);
+    white-space: nowrap;
+  }
+  .toast.error { background: rgba(255,90,90,0.15); border-color: rgba(255,90,90,0.3); color: var(--red); }
+  .toast.show { opacity: 1; }
+
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="status-dot off" id="dot"></span>
+  <span class="topbar-title">Song Queue Dashboard</span>
+  <span class="topbar-spacer"></span>
+  <span class="topbar-hint">drag songs between columns to move them</span>
+  <button class="btn skip" onclick="api('skip')">⏭ Skip</button>
+  <button class="btn danger" onclick="if(confirm('Clear entire queue?')) api('clear')">✕ Clear All</button>
+</div>
+
+<div class="request-bar">
+  <span class="request-label">+ Manual</span>
+  <div class="request-input-wrap">
+    <input type="text" id="song-input" placeholder="song title..." autocomplete="off"
+           oninput="onSongInput()" onkeydown="onSongKeydown(event)" onfocus="openSuggest()" />
+    <div class="suggest-list" id="suggest-list"></div>
+  </div>
+  <input class="requester-input" type="text" id="requester-input" placeholder="requester ID"
+         onkeydown="if(event.key==='Enter') submitRequest()" />
+  <button class="btn add" id="add-btn" onclick="submitRequest()">+ Add to Queue</button>
+  <span class="toast" id="toast"></span>
+</div>
+
+<div class="columns">
+  <!-- Now Playing -->
+  <div class="col-panel">
+    <div class="col-header amber">
+      <span class="col-title amber">Now Playing</span>
+      <span class="col-badge amber" id="np-badge">—</span>
+    </div>
+    <div class="drop-zone" id="zone-nowPlaying" data-zone="nowPlaying"
+         ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,0)">
+      <p class="np-empty" id="np-empty">no song loaded</p>
+      <div id="np-card-container"></div>
+    </div>
+  </div>
+
+  <!-- Up Next -->
+  <div class="col-panel">
+    <div class="col-header">
+      <span class="col-title purple">Up Next</span>
+      <span class="col-badge purple" id="queue-badge">0</span>
+    </div>
+    <div class="drop-zone" id="zone-queue" data-zone="queue"
+         ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, getDropIndex(event, 'zone-queue'))">
+      <p class="empty-state" id="queue-empty" style="display:none">no requests yet...</p>
+      <div id="queue-list"></div>
+    </div>
+  </div>
+
+  <!-- Played -->
+  <div class="col-panel">
+    <div class="col-header green">
+      <span class="col-title green">Played</span>
+      <span class="col-badge green" id="played-badge">0</span>
+    </div>
+    <div class="drop-zone" id="zone-played" data-zone="played"
+         ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, getDropIndex(event, 'zone-played'))">
+      <p class="empty-state" id="played-empty" style="display:none">nothing played yet...</p>
+      <div id="played-list"></div>
+    </div>
+  </div>
+
+  <!-- Pending -->
+  <div class="col-panel">
+    <div class="col-header orange">
+      <span class="col-title orange">Pending Review</span>
+      <span class="col-badge orange" id="pending-badge">0</span>
+    </div>
+    <div class="drop-zone" id="zone-pending" style="overflow-y:auto;">
+      <p class="empty-state" id="pending-empty">no pending requests</p>
+      <div id="pending-list"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const WS_URL = `ws://${location.host}`;
+let ws, reconnectTimer, state = { nowPlaying: null, queue: [], playedSongs: [] };
+
+// Drag state
+let dragging = { zone: null, index: null, el: null };
+
+// ── WebSocket ──────────────────────────────────────────────────────────────────
+function connect() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen  = () => { document.getElementById('dot').classList.remove('off'); clearTimeout(reconnectTimer); };
+  ws.onclose = () => { document.getElementById('dot').classList.add('off'); reconnectTimer = setTimeout(connect, 3000); };
+  ws.onmessage = (e) => { try { const m = JSON.parse(e.data); if (m.type === 'state') { state = m; render(); } } catch(_){} };
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────────
+function render() {
+  const { nowPlaying, queue, playedSongs, pending } = state;
+  const played = playedSongs || [];
+
+  // Now Playing
+  const npEmpty = document.getElementById('np-empty');
+  const npContainer = document.getElementById('np-card-container');
+  const npBadge = document.getElementById('np-badge');
+  if (nowPlaying) {
+    npEmpty.style.display = 'none';
+    npBadge.textContent = '♪';
+    npContainer.innerHTML = `
+      <div class="now-playing-card" draggable="true"
+           ondragstart="onDragStart(event,'nowPlaying',0)"
+           ondragend="onDragEnd(event)">
+        <div class="drag-handle"><span></span><span></span><span></span></div>
+        <div class="song-info">
+          <div class="now-playing-label">NOW PLAYING</div>
+          <div class="song-line1">
+            <span class="song-title">${esc(nowPlaying.title)}</span>
+            <span class="song-req">@${esc(nowPlaying.requester)}</span>
+          </div>
+          ${nowPlaying.artist ? `<div class="song-artist" style="font-size:13px;color:var(--text-dim);margin-top:2px;">${esc(nowPlaying.artist)}</div>` : ''}
+          ${historyHtml(nowPlaying.title)}
+        </div>
+        ${nowPlaying.key != null && nowPlaying.key !== '' ? `<span class="key-badge">${nowPlaying.key >= 0 ? '+' : ''}${esc(nowPlaying.key)}</span>` : ''}
+        <button class="finish-btn" onclick="api('skip')" title="Mark as finished and move to Played">✓ Finished</button>
+        <button class="del-btn" onclick="deleteSong('nowPlaying',0)" title="Remove">✕</button>
+      </div>`;
+  } else {
+    npEmpty.style.display = 'block';
+    npBadge.textContent = '—';
+    npContainer.innerHTML = '';
+  }
+
+  // Queue
+  document.getElementById('queue-badge').textContent = queue.length;
+  document.getElementById('queue-empty').style.display = queue.length === 0 ? 'block' : 'none';
+  document.getElementById('queue-list').innerHTML = queue.map((item, i) => `
+    <div class="song-card" draggable="true"
+         ondragstart="onDragStart(event,'queue',${i})"
+         ondragend="onDragEnd(event)"
+         ondragover="onCardDragOver(event,${i},'zone-queue')"
+         id="queue-card-${i}">
+      <div class="drag-handle"><span></span><span></span><span></span></div>
+      <div class="song-info">
+        <div class="song-line1">
+          <span class="song-title">${esc(item.title)}</span>
+          <span class="song-req" style="font-size:11px;color:var(--blue);margin-left:auto;">@${esc(item.requester)}</span>
+        </div>
+        ${item.artist ? `<div class="song-artist" style="font-size:11px;color:var(--text-dim);margin-top:2px;">${esc(item.artist)}</div>` : ''}
+        ${historyHtml(item.title)}
+      </div>
+      ${item.key != null && item.key !== '' ? `<span class="key-badge">${item.key >= 0 ? '+' : ''}${esc(item.key)}</span>` : ''}
+      <button class="del-btn" onclick="deleteSong('queue',${i})" title="Remove">✕</button>
+    </div>`).join('');
+
+  // Played
+  document.getElementById('played-badge').textContent = played.length;
+  document.getElementById('played-empty').style.display = played.length === 0 ? 'block' : 'none';
+  document.getElementById('played-list').innerHTML = played.map((item, i) => `
+    <div class="song-card played-card" draggable="true"
+         ondragstart="onDragStart(event,'played',${i})"
+         ondragend="onDragEnd(event)"
+         ondragover="onCardDragOver(event,${i},'zone-played')"
+         id="played-card-${i}">
+      <div class="drag-handle"><span></span><span></span><span></span></div>
+      <div class="song-info">
+        <div class="song-line1">
+          <span class="song-title">${esc(item.title)}</span>
+          <span class="song-req" style="font-size:11px;color:var(--blue);margin-left:auto;">@${esc(item.requester)}</span>
+        </div>
+        ${item.artist ? `<div class="song-artist" style="font-size:11px;color:var(--text-dim);margin-top:2px;">${esc(item.artist)}</div>` : ''}
+        ${historyHtml(item.title)}
+      </div>
+      ${item.key != null && item.key !== '' ? `<span class="key-badge">${item.key >= 0 ? '+' : ''}${esc(item.key)}</span>` : ''}
+      <button class="del-btn" onclick="deleteSong('played',${i})" title="Remove">✕</button>
+    </div>`).join('');
+
+  // Pending
+  const pendingList = pending || [];
+  document.getElementById('pending-badge').textContent = pendingList.length;
+  document.getElementById('pending-empty').style.display = pendingList.length === 0 ? 'block' : 'none';
+  document.getElementById('pending-list').innerHTML = pendingList.map((item, i) => {
+    const hasMatch = item.confidence !== null;
+    const confLabel = hasMatch ? `${item.confidence}% match` : 'no match';
+    const confClass = hasMatch ? '' : 'no-match';
+    return `
+    <div class="pending-card" id="pending-card-${i}">
+      <div class="pending-top">
+        <span class="pending-original" title="Viewer typed: ${esc(item.originalRequest)}">
+          ❝ ${esc(item.originalRequest)}
+        </span>
+        <span class="pending-confidence ${confClass}">${confLabel}</span>
+      </div>
+      <div class="pending-req">@${esc(item.requester)}</div>
+      <div class="pending-fields">
+        <input class="pending-field" id="pending-title-${i}" placeholder="song title"
+               value="${esc(item.title)}" />
+        <input class="pending-field" id="pending-artist-${i}" placeholder="artist (optional)"
+               value="${esc(item.artist)}" />
+      </div>
+      <div class="pending-actions">
+        <button class="accept-btn" onclick="acceptPending(${i})">✓ Accept → Queue</button>
+        <button class="pending-del" onclick="deleteSong('pending',${i})" title="Dismiss">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Drag & Drop ────────────────────────────────────────────────────────────────
+function onDragStart(e, zone, index) {
+  dragging = { zone, index };
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', `${zone}:${index}`);
+  setTimeout(() => e.target.classList.add('dragging'), 0);
+}
+
+function onDragEnd(e) {
+  e.target.classList.remove('dragging');
+  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+  document.querySelectorAll('.drag-target').forEach(el => el.classList.remove('drag-target'));
+  dragging = { zone: null, index: null, el: null };
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+}
+
+function onDragLeave(e) {
+  if (!e.currentTarget.contains(e.relatedTarget)) {
+    e.currentTarget.classList.remove('drag-over');
+  }
+}
+
+function onCardDragOver(e, index, zoneId) {
+  e.preventDefault();
+  e.stopPropagation();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.drag-target').forEach(el => el.classList.remove('drag-target'));
+  const card = document.getElementById(`${zoneId.replace('zone-','')}-card-${index}`);
+  if (card) card.classList.add('drag-target');
+}
+
+function getDropIndex(e, zoneId) {
+  const zone = document.getElementById(zoneId);
+  const cards = zone.querySelectorAll('.song-card');
+  let closestIndex = (zoneId === 'zone-played' ? (state.playedSongs||[]).length : state.queue.length);
+  let closestDist = Infinity;
+  cards.forEach((card, i) => {
+    const rect = card.getBoundingClientRect();
+    const mid = rect.top + rect.height / 2;
+    const dist = Math.abs(e.clientY - mid);
+    if (dist < closestDist) {
+      closestDist = dist;
+      closestIndex = e.clientY < mid ? i : i + 1;
+    }
+  });
+  return closestIndex;
+}
+
+function onDrop(e, toIndex) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (dragging.zone === null) return;
+
+  const toZone = e.currentTarget.dataset.zone;
+  let finalIndex = toIndex;
+
+  // If dropping onto a card highlight, use that card's index
+  const target = e.target.closest('.song-card, .now-playing-card');
+  if (target && toZone !== 'nowPlaying') {
+    const idParts = target.id ? target.id.split('-') : [];
+    if (idParts.length) {
+      const cardIdx = parseInt(idParts[idParts.length - 1]);
+      if (!isNaN(cardIdx)) {
+        const rect = target.getBoundingClientRect();
+        finalIndex = e.clientY < rect.top + rect.height / 2 ? cardIdx : cardIdx + 1;
+      }
+    }
+  }
+
+  // Adjust index if moving within same zone downward
+  if (dragging.zone === toZone && toZone !== 'nowPlaying' && finalIndex > dragging.index) {
+    finalIndex--;
+  }
+
+  // Skip no-op
+  if (dragging.zone === toZone && dragging.index === finalIndex) return;
+
+  api('move', { fromZone: dragging.zone, fromIndex: dragging.index, toZone, toIndex: finalIndex });
+}
+
+// ── Actions ────────────────────────────────────────────────────────────────────
+function deleteSong(zone, index) {
+  api('delete', { zone, index });
+}
+
+function acceptPending(index) {
+  const title = document.getElementById(`pending-title-${index}`)?.value.trim();
+  const artist = document.getElementById(`pending-artist-${index}`)?.value.trim();
+  if (!title) { showToast('enter a song title first', true); return; }
+  api('accept-pending', { index, title, artist });
+}
+
+// ── Manual Request ─────────────────────────────────────────────────────────────
+let songList = [];       // full list from server
+let filteredSongs = [];  // current suggest results
+let suggestActive = -1;  // keyboard nav index
+let selectedSong = null; // confirmed pick from suggest
+
+let historyData = {};  // title_lower → record
+
+async function loadHistory() {
+  try {
+    const res = await fetch('/api/history');
+    historyData = await res.json();
+    // Snapshot the data at load time — never overwrite during session
+    render();
+  } catch(_) {}
+}
+
+function daysAgo(dateStr) {
+  if (!dateStr) return null;
+  const then = new Date(dateStr.replace(' ', 'T') + 'Z');
+  if (isNaN(then)) return null;
+  const diff = Math.floor((Date.now() - then.getTime()) / 86400000);
+  if (diff === 0) return 'today';
+  if (diff === 1) return '1 day ago';
+  return `${diff} days ago`;
+}
+
+function historyHtml(title) {
+  const rec = historyData[title.toLowerCase().trim()];
+  if (!rec || !rec.last_requested_at) {
+    return `<div class="song-history"><span class="h-days">⏱ Never requested</span></div>`;
+  }
+  const ago = daysAgo(rec.last_requested_at);
+  return `<div class="song-history">
+    ${ago ? `<span class="h-days">⏱ ${ago}</span>` : ''}
+    <span class="h-req">by @${esc(rec.last_requester)}</span>
+  </div>`;
+}
+
+async function loadSongList() {
+  try {
+    const res = await fetch('/api/songs');
+    songList = await res.json();
+  } catch(_) {}
+}
+
+function onSongInput() {
+  selectedSong = null;
+  const q = document.getElementById('song-input').value.trim().toLowerCase();
+  if (!q) { closeSuggest(); return; }
+  filteredSongs = songList
+    .filter(s => s.title.toLowerCase().includes(q) || (s.artist||'').toLowerCase().includes(q))
+    .slice(0, 12);
+  renderSuggest();
+  openSuggest();
+}
+
+function renderSuggest() {
+  const list = document.getElementById('suggest-list');
+  if (filteredSongs.length === 0) { list.innerHTML = '<div class="suggest-item" style="color:var(--text-muted)">no matches</div>'; return; }
+  list.innerHTML = filteredSongs.map((s, i) => `
+    <div class="suggest-item${i === suggestActive ? ' active' : ''}"
+         onmousedown="pickSong(${i})" data-idx="${i}">
+      ${esc(s.title)}${s.artist ? `<span class="s-artist">${esc(s.artist)}</span>` : ''}
+    </div>`).join('');
+}
+
+function openSuggest() {
+  const q = document.getElementById('song-input').value.trim();
+  if (q && filteredSongs.length > 0) document.getElementById('suggest-list').classList.add('open');
+}
+
+function closeSuggest() {
+  document.getElementById('suggest-list').classList.remove('open');
+  suggestActive = -1;
+}
+
+function pickSong(idx) {
+  selectedSong = filteredSongs[idx];
+  document.getElementById('song-input').value = selectedSong.title;
+  closeSuggest();
+  document.getElementById('requester-input').focus();
+}
+
+function onSongKeydown(e) {
+  const list = document.getElementById('suggest-list');
+  if (!list.classList.contains('open')) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    suggestActive = Math.min(suggestActive + 1, filteredSongs.length - 1);
+    renderSuggest();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    suggestActive = Math.max(suggestActive - 1, 0);
+    renderSuggest();
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (suggestActive >= 0) pickSong(suggestActive);
+    else if (filteredSongs.length > 0) pickSong(0);
+    else submitRequest();
+  } else if (e.key === 'Escape') {
+    closeSuggest();
+  }
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.request-input-wrap')) closeSuggest();
+});
+
+async function submitRequest() {
+  const titleInput = document.getElementById('song-input');
+  const requesterInput = document.getElementById('requester-input');
+  const title = (selectedSong?.title || titleInput.value).trim();
+  const artist = selectedSong?.artist || '';
+  const key = selectedSong?.key || '';
+  const requester = requesterInput.value.trim() || 'manual';
+
+  if (!title) { showToast('enter a song title', true); return; }
+
+  await api('add', { title, artist, key, requester });
+
+  titleInput.value = '';
+  requesterInput.value = '';
+  selectedSong = null;
+  filteredSongs = [];
+  closeSuggest();
+  showToast(`added: ${title}`);
+  titleInput.focus();
+}
+
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isError ? ' error' : '') + ' show';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+
+async function api(endpoint, body = {}) {
+  try {
+    await fetch(`/api/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch(err) {
+    console.error('API error:', err);
+  }
+}
+
+function esc(s) {
+  return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+connect();
+loadSongList();
+loadHistory();
+</script>
+</body>
+</html>

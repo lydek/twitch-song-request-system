@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline'">
+<title>Song Queue Overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+
+  :root {
+    --bg-panel: rgba(8, 8, 20, 0.92);
+    --bg-card: rgba(15, 10, 30, 0.95);
+    --border: rgba(120, 60, 220, 0.3);
+    --purple: #b06aff;
+    --purple-dim: #7b4fb5;
+    --blue: #5a9aff;
+    --green: #4aff9a;
+    --green-dim: #2a9a5a;
+    --text: #d4c8f0;
+    --text-dim: #7a6a9a;
+    --text-muted: #3a3060;
+    --list-height: 240px;
+  }
+
+  html, body {
+    width: 480px;
+    background: transparent !important;
+    background-color: transparent !important;
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--text);
+    overflow: hidden;
+  }
+
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    position: relative;
+    backdrop-filter: blur(8px);
+    display: flex;
+    flex-direction: column;
+  }
+  .panel::before, .panel::after {
+    content: ''; position: absolute; width: 10px; height: 10px;
+  }
+  .panel::before { top: -1px; left: -1px; border-top: 2px solid var(--purple); border-left: 2px solid var(--purple); }
+  .panel::after  { bottom: -1px; right: -1px; border-bottom: 2px solid var(--purple); border-right: 2px solid var(--purple); }
+
+  /* ── Header ── */
+  .header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-shrink: 0;
+  }
+  .header-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px; font-weight: 500; letter-spacing: 3px;
+    color: var(--purple-dim); text-transform: uppercase; flex: 1;
+  }
+  .status-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--purple); animation: blink 2s ease-in-out infinite;
+  }
+  .status-dot.disconnected { background: #ff4444; animation: none; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+  .badge {
+    font-size: 9px; padding: 2px 8px; border-radius: 3px; letter-spacing: 1px;
+    background: rgba(80,30,120,0.4); border: 1px solid rgba(120,60,200,0.4); color: var(--purple);
+  }
+
+  /* ── Now Playing ── */
+  .now-playing {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--purple);
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+  }
+  .np-label     { font-size: 8px; letter-spacing: 3px; color: var(--purple-dim); margin-bottom: 4px; }
+  .np-title     {
+    font-family: 'Orbitron', sans-serif; font-size: 32px; font-weight: 500; color: #ddc8ff;
+    line-height: 1.2; white-space: nowrap; overflow: hidden;
+  }
+  .np-title-inner {
+    display: inline-block;
+    white-space: nowrap;
+  }
+  .np-artist    { font-size: 15px; color: var(--text-dim); margin-top: 2px; }
+  .np-requester { font-size: 13px; color: var(--blue); margin-top: 5px; }
+  .np-empty     { font-size: 12px; color: var(--text-muted); line-height: 44px; }
+  @keyframes scroll-title {
+    0%      { transform: translateX(0); }
+    20%     { transform: translateX(0); }
+    78%     { transform: translateX(var(--scroll-dist, 0)); }
+    99.9%   { transform: translateX(var(--scroll-dist, 0)); }
+    100%    { transform: translateX(0); }
+  }
+  .np-title-inner.scrolling { animation: scroll-title var(--scroll-duration, 6s) ease-in-out infinite; }
+
+  /* ── Section dividers ── */
+  .section-header {
+    font-size: 8px; letter-spacing: 3px; margin-bottom: 6px; flex-shrink: 0;
+  }
+  .section-header.purple { color: var(--text-muted); }
+  .section-header.green  { color: rgba(42,154,90,0.7); margin-top: 10px; }
+
+  /* ── Auto-scrolling ticker lists ── */
+  .scroll-list {
+    height: var(--list-height);
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Fade out top edge so items glide out smoothly */
+  .scroll-list::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 24px;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .scroll-list.queue-scroll::before  { background: linear-gradient(to bottom, rgba(8,8,20,0.92), transparent); }
+  .scroll-list.played-scroll::before { background: linear-gradient(to bottom, rgba(8,8,20,0.92), transparent); }
+
+  .scroll-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: absolute;
+    width: 100%;
+  }
+
+  /* ── Divider line ── */
+  .divider-line {
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(120,60,220,0.3), transparent);
+    margin: 10px 0;
+    flex-shrink: 0;
+  }
+
+  /* ── List items ── */
+  .queue-item, .played-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 3px 8px; border-radius: 3px;
+    animation: slide-in 0.3s ease; flex-shrink: 0;
+  }
+  .queue-item  { background: transparent; border: 1px solid rgba(60,40,100,0.3); }
+  .played-item { background: transparent; border: 1px solid rgba(30,70,50,0.3); }
+  @keyframes slide-in { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+
+  .q-num   { font-size: 9px; color: var(--text-muted); min-width: 18px; }
+  .q-title { font-size: 21px; color: var(--text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .q-artist{ font-size: 15px; color: var(--text-dim); }
+  .q-req   { font-size: 13px; color: var(--blue); white-space: nowrap; }
+
+  .p-num   { font-size: 9px; color: rgba(74,255,154,0.3); min-width: 18px; }
+  .p-title { font-size: 21px; color: rgba(180,220,190,0.75); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .p-artist{ font-size: 15px; color: rgba(120,160,130,0.6); }
+  .p-req   { font-size: 13px; color: rgba(90,154,255,0.6); white-space: nowrap; }
+
+  .played-badge {
+    font-size: 9px; padding: 2px 8px; border-radius: 3px; letter-spacing: 1px;
+    background: rgba(20,80,50,0.4); border: 1px solid rgba(40,140,80,0.4); color: var(--green);
+  }
+
+  .list-empty { font-size: 10px; color: var(--text-muted); text-align: center; padding: 8px 0; }
+</style>
+</head>
+<body>
+<div class="panel">
+  <div class="header">
+    <span class="status-dot disconnected" id="dot"></span>
+    <span class="header-title">Song Queue</span>
+    <span class="badge" id="queue-badge">0 waiting</span>
+  </div>
+
+  <!-- Now Playing -->
+  <div class="now-playing">
+    <p class="np-label">NOW PLAYING</p>
+    <p class="np-empty"    id="np-empty"     >no song loaded</p>
+    <p class="np-title"    id="np-title"      style="display:none"><span class="np-title-inner" id="np-title-inner"></span></p>
+    <p class="np-artist"   id="np-artist"     style="display:none"></p>
+    <p class="np-requester"id="np-requester"  style="display:none"></p>
+  </div>
+
+  <!-- Up Next -->
+  <p class="section-header purple">// UP NEXT</p>
+  <div class="scroll-list queue-scroll" id="queue-list">
+    <div class="scroll-inner" id="queue-inner">
+      <p class="list-empty">no requests yet...</p>
+    </div>
+  </div>
+
+  <div class="divider-line"></div>
+
+  <!-- Played -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-shrink:0;">
+    <p class="section-header green" style="margin:0;flex:1;">// PLAYED</p>
+    <span class="played-badge" id="played-badge">0 songs</span>
+  </div>
+  <div class="scroll-list played-scroll" id="played-list">
+    <div class="scroll-inner" id="played-inner">
+      <p class="list-empty">nothing played yet...</p>
+    </div>
+  </div>
+</div>
+
+
+<script>
+const WS_URL = `ws://${location.host}`;
+let ws, reconnectTimer;
+
+const tickers = {
+  queue:  { el: null, inner: null, offset: 0, raf: null, lastTime: null },
+  played: { el: null, inner: null, offset: 0, raf: null, lastTime: null },
+};
+// Scroll speed — to change this, edit OVERLAY_SCROLL_PX_PER_SEC in server/config.js
+const SCROLL_PX_PER_SEC = 28;
+
+function connect() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen  = () => { document.getElementById('dot').classList.remove('disconnected'); clearTimeout(reconnectTimer); };
+  ws.onclose = () => { document.getElementById('dot').classList.add('disconnected'); reconnectTimer = setTimeout(connect, 3000); };
+  ws.onmessage = (e) => {
+    try {
+      const m = JSON.parse(e.data);
+      if (m.type === 'state') renderState(m);
+    } catch(_) {}
+  };
+}
+
+function renderState({ nowPlaying, queue, playedSongs }) {
+  // ── Now Playing ──
+  const empty = document.getElementById('np-empty');
+  const title = document.getElementById('np-title');
+  const artist = document.getElementById('np-artist');
+  const req = document.getElementById('np-requester');
+  if (nowPlaying) {
+    empty.style.display = 'none';
+    const inner = document.getElementById('np-title-inner');
+    title.style.display = 'block';
+    inner.textContent = nowPlaying.title;
+    inner.classList.remove('scrolling');
+    inner.style.removeProperty('--scroll-dist');
+    inner.style.removeProperty('--scroll-duration');
+    artist.style.display = nowPlaying.artist ? 'block' : 'none'; artist.textContent = nowPlaying.artist;
+    req.style.display = 'block'; req.textContent = `> requested by @${nowPlaying.requester}`;
+    requestAnimationFrame(() => {
+      const overflow = inner.scrollWidth - title.clientWidth;
+      if (overflow > 10) {
+        inner.style.setProperty('--scroll-dist', `-${overflow + 20}px`);
+        // Speed: ~80px/sec, min 4s, max 20s, plus pauses
+        const duration = Math.min(40, Math.max(8, (overflow / 20) + 5));
+        inner.style.setProperty('--scroll-duration', `${duration.toFixed(1)}s`);
+        inner.classList.add('scrolling');
+      }
+    });
+  } else {
+    empty.style.display = 'block';
+    [title, artist, req].forEach(el => el.style.display = 'none');
+  }
+
+  // ── Queue list ──
+  document.getElementById('queue-badge').textContent = `${queue.length} waiting`;
+  const qInner = document.getElementById('queue-inner');
+  qInner.innerHTML = queue.length === 0
+    ? '<p class="list-empty">no requests yet...</p>'
+    : queue.map((item, i) => `
+        <div class="queue-item">
+          <span class="q-num">${String(i+1).padStart(2,'0')}</span>
+          <span class="q-title">${esc(item.title)}${item.artist ? ` <span class="q-artist">${esc(item.artist)}</span>` : ''}</span>
+          <span class="q-req">@${esc(item.requester)}</span>
+        </div>`).join('');
+  resetTicker('queue', document.getElementById('queue-list'), qInner);
+
+  // ── Played list ──
+  const played = playedSongs || [];
+  document.getElementById('played-badge').textContent = `${played.length} song${played.length !== 1 ? 's' : ''}`;
+  const pInner = document.getElementById('played-inner');
+  pInner.innerHTML = played.length === 0
+    ? '<p class="list-empty">nothing played yet...</p>'
+    : played.map((item, i) => `
+        <div class="played-item">
+          <span class="p-num">${String(i+1).padStart(2,'0')}</span>
+          <span class="p-title">${esc(item.title)}${item.artist ? ` <span class="p-artist">${esc(item.artist)}</span>` : ''}</span>
+          <span class="p-req">@${esc(item.requester)}</span>
+        </div>`).join('');
+  resetTicker('played', document.getElementById('played-list'), pInner);
+}
+
+function resetTicker(key, container, inner) {
+  const t = tickers[key];
+  if (t.raf) { cancelAnimationFrame(t.raf); t.raf = null; }
+  t.el = container;
+  t.inner = inner;
+  t.offset = 0;
+  t.lastTime = null;
+  inner.style.transform = 'translateY(0)';
+  requestAnimationFrame(() => {
+    if (inner.scrollHeight > container.clientHeight) {
+      setTimeout(() => startTicker(key), 2000);
+    }
+  });
+}
+
+function startTicker(key) {
+  const t = tickers[key];
+  if (!t.el || !t.inner) return;
+  function step(timestamp) {
+    if (!t.lastTime) t.lastTime = timestamp;
+    const delta = (timestamp - t.lastTime) / 1000;
+    t.lastTime = timestamp;
+    const maxScroll = t.inner.scrollHeight - t.el.clientHeight;
+    if (maxScroll <= 0) return;
+    t.offset += SCROLL_PX_PER_SEC * delta;
+    if (t.offset >= maxScroll) {
+      t.offset = maxScroll;
+      t.inner.style.transform = `translateY(-${t.offset}px)`;
+      setTimeout(() => {
+        t.offset = 0;
+        t.lastTime = null;
+        t.inner.style.transform = 'translateY(0)';
+        setTimeout(() => startTicker(key), 2000);
+      }, 2000);
+      return;
+    }
+    t.inner.style.transform = `translateY(-${t.offset}px)`;
+    t.raf = requestAnimationFrame(step);
+  }
+  t.raf = requestAnimationFrame(step);
+}
+
+function esc(s) {
+  return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+connect();
+</script>
+</body>
+</html>
