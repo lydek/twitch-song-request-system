@@ -70,6 +70,23 @@ OBS 顯示層透過 WebSocket 即時更新
 
 ---
 
+## OBS / Streamlabs 瀏覽器來源設定
+
+將顯示層加入你的場景——只需設定一次：
+
+1. 在 OBS/Streamlabs 新增來源 → **瀏覽器（Browser）**
+2. 網址：`http://localhost:3000/overlay/index.html`
+3. 寬度：`960`，高度：`800`（以 2 倍解析度渲染，較清晰，再於場景中縮小至適當大小）
+4. 在 **自訂 CSS（Custom CSS）** 欄位貼上：
+   ```css
+   body { background-color: rgba(0, 0, 0, 0) !important; margin: 0px auto; overflow: hidden; }
+   ```
+5. 取消勾選 **「來源不可見時關閉（Shutdown source when not visible）」**
+
+伺服器啟動後顯示層會自動連線，並即時更新歌單內容。
+
+---
+
 ## Google 試算表設定
 
 ### 歌曲清單試算表

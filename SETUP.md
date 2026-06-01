@@ -68,6 +68,23 @@ Then open **http://localhost:3000/dashboard** in your browser.
 
 ---
 
+## OBS / Streamlabs Browser Source
+
+Add the overlay to your scene — do this once:
+
+1. In OBS/Streamlabs, add a new source → **Browser**
+2. URL: `http://localhost:3000/overlay/index.html`
+3. Width: `960`, Height: `800` (renders at 2× for sharpness, scale down in scene)
+4. Paste this into the **Custom CSS** field:
+   ```css
+   body { background-color: rgba(0, 0, 0, 0) !important; margin: 0px auto; overflow: hidden; }
+   ```
+5. Uncheck **"Shutdown source when not visible"**
+
+The overlay connects automatically when the server is running and updates live.
+
+---
+
 ## Google Sheets setup
 
 ### Song list sheet
