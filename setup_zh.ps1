@@ -294,19 +294,13 @@ $ngrokPath = ""
 if (Get-Command ngrok -ErrorAction SilentlyContinue) {
     $ngrokPath = "ngrok"
     Write-OK "在系統路徑找到 ngrok"
-} elseif (Test-Path "C:
-grok
-grok.exe") {
-    $ngrokPath = "C:
-grok
-grok.exe"
-    Write-OK "在 C:
-grok
-grok.exe 找到 ngrok"
+} elseif (Test-Path "C:\ngrok\ngrok.exe") {
+    $ngrokPath = "C:\ngrok\ngrok.exe"
+    Write-OK "在 C:\ngrok\ngrok.exe 找到 ngrok"
 } else {
-    Write-Warn "找不到 ngrok，請至 https://ngrok.com/download 下載並解壓縮至 C:
-grok"
+    Write-Warn "找不到 ngrok，請至 https://ngrok.com/download 下載並解壓縮至 C:\ngrok"
 }
+
 
 if ($ngrokPath) {
     Write-Host "  Authtoken 是 ngrok 帳號的驗證金鑰，取得方式如下：" -ForegroundColor DarkGray
