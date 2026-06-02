@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VTuber Song Queue 設定精靈</title>
+  <link rel="stylesheet" href="setup.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Noto+Sans+TC:wght@300;400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="stars"></div>
+  <div class="container">
+    <header>
+      <div class="logo">🎵</div>
+      <h1>VTuber Song Queue</h1>
+      <p class="subtitle">先選模式，再只填該模式真正需要的設定。</p>
+    </header>
+
+    <div class="card glass">
+      <div class="steps-indicator">
+        <div class="step-dot active" id="dot-1"><span>1</span><label>模式與 Twitch</label></div>
+        <div class="step-line" id="line-1"></div>
+        <div class="step-dot" id="dot-2"><span>2</span><label>Google Sheets</label></div>
+        <div class="step-line" id="line-2"></div>
+        <div class="step-dot" id="dot-3"><span>3</span><label>確認並啟動</label></div>
+      </div>
+
+      <form id="setup-form">
+        <div class="step-panel active" id="step-panel-1">
+          <h2>選擇執行模式</h2>
+          <p class="description">`Local` 適合本機 exe，會用 EventSub WebSocket。`Server` 適合可公開存取的伺服器，會用 EventSub Webhook。</p>
+
+          <div class="input-group">
+            <label for="app_mode">執行模式</label>
+            <select id="app_mode">
+              <option value="local" selected>Local Mode（本機 exe / WebSocket）</option>
+              <option value="server">Server Mode（公開伺服器 / Webhook）</option>
+            </select>
+            <p class="input-help" id="app-mode-hint"></p>
+          </div>
+
+          <div class="guide-box">
+            <h3>Twitch App 建議</h3>
+            <ol>
+              <li>Local Mode: 建議註冊為公開 client，使用 Device Code Flow。</li>
+              <li>Server Mode: 建議註冊為機密 client，使用 Authorization Code Flow。</li>
+              <li>Redirect URI 只有 Server Mode 的 OAuth popup 會用到，例如 <code>http://localhost:3000/setup/callback</code>。</li>
+            </ol>
+          </div>
+
+          <div class="input-group">
+            <label for="twitch_client_id">Twitch Client ID <span class="required">*</span></label>
+            <input type="text" id="twitch_client_id" placeholder="貼上你的 Client ID" required autocomplete="off">
+          </div>
+
+          <div class="input-group mode-server-only" id="client-secret-group">
+            <label for="twitch_client_secret">Twitch Client Secret <span class="required">*</span></label>
+            <input type="password" id="twitch_client_secret" placeholder="Server Mode 才需要" autocomplete="off">
+          </div>
+
+          <div class="auth-section">
+            <button type="button" class="btn btn-primary btn-large" id="btn-twitch-auth">開始授權</button>
+            <div id="twitch-status" class="status-msg"></div>
+          </div>
+
+          <div class="guide-box hidden" id="device-code-box">
+            <h3>Device Code 授權</h3>
+            <p>請在瀏覽器開啟下列網址並輸入代碼完成授權。</p>
+            <p><strong>驗證網址：</strong> <a id="device-code-link" href="#" target="_blank" rel="noopener noreferrer">開啟 Twitch 啟用頁</a></p>
+            <p><strong>授權代碼：</strong> <code id="device-code-user-code">-</code></p>
+          </div>
+
+          <div class="auto-fields hidden" id="twitch-auto-fields">
+            <div class="input-group-row">
+              <div class="input-group">
+                <label for="twitch_broadcaster_id">Broadcaster ID</label>
+                <input type="text" id="twitch_broadcaster_id" readonly class="readonly-input">
+              </div>
+              <div class="input-group">
+                <label for="twitch_reward_id">點歌獎勵 ID</label>
+                <input type="text" id="twitch_reward_id" readonly class="readonly-input">
+              </div>
+            </div>
+            <div class="input-group-row">
+              <div class="input-group">
+                <label for="twitch-random_reward_id">隨機點歌獎勵 ID</label>
+                <input type="text" id="twitch-random_reward_id" readonly class="readonly-input">
+              </div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <div></div>
+            <button type="button" class="btn btn-next" id="to-step-2" disabled>下一步：Google Sheets</button>
+          </div>
+        </div>
+
+        <div class="step-panel" id="step-panel-2">
+          <h2>連接 Google Sheets</h2>
+          <p class="description">提供歌單工作表與 service account 憑證，系統會讀取歌單並建立本地快取。</p>
+
+          <div class="input-group">
+            <label for="google_sheet_id">歌單 Google Sheet ID <span class="required">*</span></label>
+            <input type="text" id="google_sheet_id" placeholder="貼上歌單工作表 ID" required autocomplete="off">
+            <p class="input-help">格式像是 `docs.google.com/spreadsheets/d/[這一段]/edit`</p>
+          </div>
+
+          <div class="input-group-row">
+            <div class="input-group">
+              <label for="sheet_song_column">歌名欄位名稱</label>
+              <input type="text" id="sheet_song_column" value="title" placeholder="title">
+            </div>
+            <div class="input-group">
+              <label for="sheet_artist_column">歌手欄位名稱</label>
+              <input type="text" id="sheet_artist_column" value="artist" placeholder="artist">
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label for="history_sheet_id">歷史紀錄 Sheet ID（選填）</label>
+            <input type="text" id="history_sheet_id" placeholder="若要追蹤點歌歷史可填入額外工作表 ID" autocomplete="off">
+          </div>
+
+          <div class="input-group">
+            <label>Google service account 憑證 JSON <span class="required">*</span></label>
+            <div class="drop-zone" id="drop-zone">
+              <span class="drop-zone__prompt">拖曳或點擊上傳 <code>google-credentials.json</code></span>
+              <input type="file" id="credentials-file" class="drop-zone__input" accept=".json">
+            </div>
+            <div id="file-status" class="file-status-msg"></div>
+          </div>
+
+          <div class="actions">
+            <button type="button" class="btn btn-prev" id="back-to-step-1">上一步</button>
+            <button type="button" class="btn btn-next" id="to-step-3" disabled>下一步：確認設定</button>
+          </div>
+        </div>
+
+        <div class="step-panel" id="step-panel-3">
+          <h2>確認設定並啟動</h2>
+          <p class="description">模式已固定，不再混用兩套 OAuth 與 transport 設定。</p>
+
+          <div class="preview-box glass">
+            <div class="preview-item">
+              <span class="preview-label">模式</span>
+              <span class="preview-val" id="preview-mode">Local Mode</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">EventSub</span>
+              <span class="preview-val" id="preview-transport">WebSocket</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Broadcaster</span>
+              <span class="preview-val" id="preview-broadcaster">尚未授權</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Google Sheet</span>
+              <span class="preview-val" id="preview-sheet-id">-</span>
+            </div>
+          </div>
+
+          <div class="input-group mode-server-only" id="public-url-group">
+            <label for="public_url">PUBLIC_URL</label>
+            <input type="text" id="public_url" placeholder="https://xxxx.ngrok-free.app" autocomplete="off">
+            <p class="input-help">只有 Server Mode 需要。Local Mode 完全不需要公開網址。</p>
+          </div>
+
+          <div class="final-actions">
+            <button type="button" class="btn btn-prev" id="back-to-step-2">上一步</button>
+            <button type="button" class="btn btn-primary btn-large btn-glow" id="btn-save-start">儲存設定並啟動</button>
+          </div>
+
+          <div id="save-status" class="status-msg text-center margin-top"></div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="setup.js"></script>
+</body>
+</html>

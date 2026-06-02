@@ -7,12 +7,16 @@ const config = require('./config');
 const path = require('path');
 const fs = require('fs');
 
-const CREDENTIALS_PATH = path.join(__dirname, '..', 'google-credentials.json');
-const CACHE_PATH = path.join(__dirname, '..', 'song-cache.json');
+const isPkg = typeof process.pkg !== 'undefined';
+const baseDir = isPkg ? path.dirname(process.execPath) : path.join(__dirname, '..');
+
+const CREDENTIALS_PATH = path.join(baseDir, 'google-credentials.json');
+const CACHE_PATH = path.join(baseDir, 'song-cache.json');
 
 // Tabs to skip — add more names here if needed
 
 let songCache = [];
+let refreshTimer = null;
 
 async function getAuthClient() {
   if (!fs.existsSync(CREDENTIALS_PATH)) {
@@ -133,7 +137,8 @@ function getSongs() {
 
 async function startAutoRefresh() {
   await fetchSongs();
-  setInterval(fetchSongs, config.SHEET_REFRESH_INTERVAL_MS);
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(fetchSongs, config.SHEET_REFRESH_INTERVAL_MS);
 }
 
 module.exports = { fetchSongs, getSongs, startAutoRefresh };
